@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>2048 - by sarayu</title>
+  <title>2048 with Animations</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -14,33 +14,37 @@
       height: 100vh;
       margin: 0;
     }
-    h1 {
-      margin-bottom: 10px;
-    }
-    #score {
-      font-size: 18px;
-      margin-bottom: 20px;
-    }
-    #grid {
-      display: grid;
-      grid-template-columns: repeat(4, 80px);
-      grid-template-rows: repeat(4, 80px);
-      gap: 10px;
+    h1 { margin-bottom: 10px; }
+    #score { font-size: 18px; margin-bottom: 20px; }
+    #board {
+      position: relative;
+      width: 360px;
+      height: 360px;
       background: #bbada0;
-      padding: 10px;
       border-radius: 5px;
+      padding: 10px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+      gap: 10px;
     }
-    .cell {
+    .cell-bg {
+      background: #cdc1b4;
+      border-radius: 3px;
+    }
+    .tile {
+      position: absolute;
       width: 80px;
       height: 80px;
-      background: #cdc1b4;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 24px;
       font-weight: bold;
       border-radius: 3px;
+      font-size: 24px;
+      transition: transform 0.15s ease-in-out;
     }
+    /* Colors per value */
     .tile-2    { background: #eee4da; color: #776e65; }
     .tile-4    { background: #ede0c8; color: #776e65; }
     .tile-8    { background: #f2b179; color: #f9f6f2; }
@@ -52,145 +56,150 @@
     .tile-512  { background: #edc850; color: #f9f6f2; font-size: 20px; }
     .tile-1024 { background: #edc53f; color: #f9f6f2; font-size: 18px; }
     .tile-2048 { background: #edc22e; color: #f9f6f2; font-size: 18px; }
-    #message {
-      margin-top: 20px;
-      font-size: 22px;
-      font-weight: bold;
+    /* Merge pop effect */
+    .merged { animation: pop 0.2s; }
+    @keyframes pop {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.2); }
+      100% { transform: scale(1); }
     }
-    #newGame {
-      margin-top: 10px;
-      padding: 8px 16px;
-      font-size: 16px;
-    }
+    #message { margin-top: 20px; font-size: 22px; font-weight: bold; }
+    #newGame { margin-top: 10px; padding: 8px 16px; font-size: 16px; }
   </style>
 </head>
 <body>
   <h1>2048</h1>
   <div id="score">Score: 0</div>
-  <div id="grid"></div>
+  <div id="board"></div>
   <div id="message"></div>
   <button id="newGame">New Game</button>
 
   <script>
-    const gridSize = 4;
-    let grid, score, status;
+    const size = 4;
+    const tileSize = 80;
+    const gap = 10;
 
-    const gridElement = document.getElementById("grid");
-    const scoreElement = document.getElementById("score");
-    const messageElement = document.getElementById("message");
-    const newGameButton = document.getElementById("newGame");
+    let grid, score, status;
+    const board = document.getElementById("board");
+    const scoreEl = document.getElementById("score");
+    const msgEl = document.getElementById("message");
+    const btn = document.getElementById("newGame");
+
+    // Helpers
+    const uid = () => Math.random().toString(36).slice(2);
 
     function initGrid() {
-      grid = Array.from({ length: gridSize }, () => Array(gridSize).fill(null));
+      grid = Array.from({ length: size }, () => Array(size).fill(null));
       score = 0;
       status = "playing";
-      addRandomTile();
-      addRandomTile();
+      board.innerHTML = "";
+      // Background cells
+      for (let i = 0; i < size * size; i++) {
+        let bg = document.createElement("div");
+        bg.className = "cell-bg";
+        board.appendChild(bg);
+      }
+      addRandomTile(); addRandomTile();
       updateUI();
     }
 
     function addRandomTile() {
       let empty = [];
-      for (let r = 0; r < gridSize; r++) {
-        for (let c = 0; c < gridSize; c++) {
-          if (grid[r][c] === null) empty.push({ r, c });
-        }
-      }
-      if (empty.length === 0) return;
+      for (let r = 0; r < size; r++)
+        for (let c = 0; c < size; c++)
+          if (!grid[r][c]) empty.push({ r, c });
+      if (!empty.length) return;
       let { r, c } = empty[Math.floor(Math.random() * empty.length)];
-      grid[r][c] = Math.random() < 0.9 ? 2 : 4;
+      grid[r][c] = { id: uid(), value: Math.random() < 0.9 ? 2 : 4, merged: false };
     }
 
     function updateUI() {
-      gridElement.innerHTML = "";
-      for (let r = 0; r < gridSize; r++) {
-        for (let c = 0; c < gridSize; c++) {
-          let val = grid[r][c];
-          let cell = document.createElement("div");
-          cell.className = "cell";
-          if (val) {
-            cell.textContent = val;
-            cell.classList.add("tile-" + val);
+      // Remove old tiles
+      document.querySelectorAll(".tile").forEach(el => el.remove());
+
+      // Render tiles
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          let tile = grid[r][c];
+          if (tile) {
+            let div = document.createElement("div");
+            div.className = `tile tile-${tile.value}`;
+            if (tile.merged) div.classList.add("merged");
+            div.textContent = tile.value;
+            let x = c * (tileSize + gap);
+            let y = r * (tileSize + gap);
+            div.style.transform = `translate(${x}px, ${y}px)`;
+            div.style.zIndex = 10;
+            board.appendChild(div);
+            tile.merged = false; // reset flag
           }
-          gridElement.appendChild(cell);
         }
       }
-      scoreElement.textContent = "Score: " + score;
-      if (status === "won") messageElement.textContent = "You win!";
-      else if (status === "over") messageElement.textContent = "Game Over!";
-      else messageElement.textContent = "";
+      scoreEl.textContent = "Score: " + score;
+      if (status === "won") msgEl.textContent = "You win!";
+      else if (status === "over") msgEl.textContent = "Game Over!";
+      else msgEl.textContent = "";
     }
 
+    // Movement logic
     function slideRow(row) {
-      let arr = row.filter(v => v !== null);
+      let arr = row.filter(v => v);
       let newRow = [];
       for (let i = 0; i < arr.length; i++) {
-        if (arr[i] === arr[i + 1]) {
-          let merged = arr[i] * 2;
-          score += merged;
+        if (arr[i + 1] && arr[i].value === arr[i + 1].value) {
+          let merged = { id: uid(), value: arr[i].value * 2, merged: true };
+          score += merged.value;
           newRow.push(merged);
           i++;
         } else {
-          newRow.push(arr[i]);
+          newRow.push({ ...arr[i] });
         }
       }
-      while (newRow.length < gridSize) newRow.push(null);
+      while (newRow.length < size) newRow.push(null);
       return newRow;
     }
 
     function moveLeft() {
       let moved = false;
       let newGrid = [];
-      for (let r = 0; r < gridSize; r++) {
+      for (let r = 0; r < size; r++) {
         let newRow = slideRow(grid[r]);
-        if (newRow.some((v, i) => v !== grid[r][i])) moved = true;
+        if (JSON.stringify(newRow) !== JSON.stringify(grid[r])) moved = true;
         newGrid.push(newRow);
       }
-      if (moved) {
-        grid = newGrid;
-        addRandomTile();
-        checkGameStatus();
-      }
+      if (moved) { grid = newGrid; addRandomTile(); checkStatus(); }
     }
-
     function moveRight() {
       grid = grid.map(row => row.reverse());
       moveLeft();
       grid = grid.map(row => row.reverse());
     }
-
     function moveUp() {
       grid = transpose(grid);
       moveLeft();
       grid = transpose(grid);
     }
-
     function moveDown() {
       grid = transpose(grid);
       moveRight();
       grid = transpose(grid);
     }
+    function transpose(m) { return m[0].map((_, c) => m.map(row => row[c])); }
 
-    function transpose(matrix) {
-      return matrix[0].map((_, c) => matrix.map(row => row[c]));
-    }
-
-    function checkGameStatus() {
-      for (let r = 0; r < gridSize; r++) {
-        for (let c = 0; c < gridSize; c++) {
-          if (grid[r][c] === 2048) status = "won";
-        }
-      }
+    function checkStatus() {
+      for (let r = 0; r < size; r++)
+        for (let c = 0; c < size; c++)
+          if (grid[r][c] && grid[r][c].value === 2048) status = "won";
       if (!canMove()) status = "over";
       updateUI();
     }
 
     function canMove() {
-      for (let r = 0; r < gridSize; r++) {
-        for (let c = 0; c < gridSize; c++) {
-          if (grid[r][c] === null) return true;
-          if (c < gridSize - 1 && grid[r][c] === grid[r][c + 1]) return true;
-          if (r < gridSize - 1 && grid[r][c] === grid[r + 1][c]) return true;
+      for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+          if (!grid[r][c]) return true;
+          if (c < size - 1 && grid[r][c].value === grid[r][c + 1]?.value) return true;
+          if (r < size - 1 && grid[r][c].value === grid[r + 1][c]?.value) return true;
         }
       }
       return false;
@@ -205,11 +214,9 @@
       updateUI();
     });
 
-    newGameButton.addEventListener("click", initGrid);
+    btn.addEventListener("click", initGrid);
 
-    // start game
     initGrid();
   </script>
 </body>
 </html>
-
